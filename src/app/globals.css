@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — derived from the wireframe set (v0.1).
+ * Single deep-blue accent for primary actions, urgent states, and Agent Governance moments.
+ * Semantic status colours used WITH text labels (never colour alone — accessibility).
+ */
+
+@theme {
+  /* Brand */
+  --color-tv-accent: #1e40af;          /* deep blue · primary actions, urgent, HITL */
+  --color-tv-accent-soft: #dbeafe;     /* light blue · selected nav, info pills */
+
+  /* Status (always paired with a text label) */
+  --color-tv-success: #16a34a;
+  --color-tv-success-soft: #d1fae5;
+  --color-tv-warn: #f59e0b;
+  --color-tv-warn-soft: #fef3c7;
+  --color-tv-danger: #dc2626;
+  --color-tv-danger-soft: #fee2e2;
+
+  /* Surfaces and text */
+  --color-tv-bg: #ffffff;
+  --color-tv-surface-1: #fafbfc;
+  --color-tv-surface-2: #f7f8fa;
+  --color-tv-border: #c9cfd8;
+  --color-tv-border-soft: #e1e5eb;
+  --color-tv-text: #1a1d23;
+  --color-tv-text-2: #5f6b7a;
+  --color-tv-text-3: #8a95a5;
+
+  /* Typography */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+/* Base */
+
+html,
+body {
+  background: var(--color-tv-bg);
+  color: var(--color-tv-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus rings — accessibility baseline */
+
+*:focus-visible {
+  outline: 2px solid var(--color-tv-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Reduced motion respect */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -150,6 +150,9 @@ async function provisionTenantForClerkOrg(args: {
   const existing = await getTenantByClerkOrgId(args.clerkOrgId);
   if (existing) return existing;
 
+  // Use ON CONFLICT DO NOTHING so two concurrent requests (layout + page render
+  // in parallel) don't both attempt an INSERT and one fail with a unique
+  // constraint violation. If the insert is a no-op due to conflict, re-fetch.
   const inserted = await db
     .insert(tenants)
     .values({
@@ -158,11 +161,16 @@ async function provisionTenantForClerkOrg(args: {
       name: args.name,
       jurisdictions: ["AU"],
     })
+    .onConflictDoNothing({ target: tenants.clerkOrgId })
     .returning();
-  if (!inserted[0]) {
+
+  if (inserted[0]) return inserted[0];
+
+  const refetched = await getTenantByClerkOrgId(args.clerkOrgId);
+  if (!refetched) {
     throw new Error("failed to provision tenant");
   }
-  return inserted[0];
+  return refetched;
 }
 
 

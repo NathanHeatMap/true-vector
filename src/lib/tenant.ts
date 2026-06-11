@@ -73,9 +73,15 @@ export async function requireRole(
     throw new ForbiddenError();
   }
 
-  const tenant = await getTenantByClerkOrgId(session.orgId);
+  let tenant = await getTenantByClerkOrgId(session.orgId);
   if (!tenant) {
-    throw new ForbiddenError();
+    // Prototype: auto-provision the Tenant row on first sign-in. In production
+    // this is done by the Clerk `organization.created` webhook, but for the
+    // prototype we don't gate the experience on webhook configuration.
+    tenant = await provisionTenantForClerkOrg({
+      clerkOrgId: session.orgId,
+      name: session.orgSlug ?? "New tenant",
+    });
   }
 
   const person = await ensurePerson({
@@ -131,6 +137,34 @@ export async function getTenantByClerkOrgId(
     .limit(1);
   return row[0] ?? null;
 }
+/**
+ * Auto-provision a Tenant row for a Clerk organisation that doesn't yet have
+ * one. Idempotent — if a row already exists (race condition), returns it.
+ * Production should fire this via the Clerk webhook; this fallback keeps the
+ * prototype usable even before the webhook is wired up.
+ */
+async function provisionTenantForClerkOrg(args: {
+  clerkOrgId: string;
+  name: string;
+}): Promise<Tenant> {
+  const existing = await getTenantByClerkOrgId(args.clerkOrgId);
+  if (existing) return existing;
+
+  const inserted = await db
+    .insert(tenants)
+    .values({
+      tenantId: `tnt_${ulid()}`,
+      clerkOrgId: args.clerkOrgId,
+      name: args.name,
+      jurisdictions: ["AU"],
+    })
+    .returning();
+  if (!inserted[0]) {
+    throw new Error("failed to provision tenant");
+  }
+  return inserted[0];
+}
+
 
 /**
  * Ensure a WorkforcePerson row exists for this Clerk user on this tenant.

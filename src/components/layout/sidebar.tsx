@@ -10,12 +10,13 @@ import { cn } from "@/lib/utils";
  * because layout doesn't always know the URL in RSC; pages pass the section in.
  */
 
-type Section = "home" | "tasks" | "cases" | "roles" | "workforce" | "audit" | "team";
+type Section = "home" | "tasks" | "cases" | "candidates" | "roles" | "workforce" | "audit" | "team";
 
 const NAV: Array<{ section: Section; label: string; href: string }> = [
   { section: "home", label: "Home", href: "/officer" },
   { section: "tasks", label: "Tasks", href: "/officer/tasks" },
   { section: "cases", label: "Cases", href: "/officer/cases" },
+  { section: "candidates", label: "Candidates", href: "/officer/candidates" },
   { section: "roles", label: "Roles", href: "/officer/roles" },
   { section: "workforce", label: "Workforce", href: "/officer/workforce" },
   { section: "audit", label: "Audit", href: "/officer/audit" },

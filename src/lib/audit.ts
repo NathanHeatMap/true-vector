@@ -52,6 +52,9 @@ export const auditEventTypeSchema = z.enum([
   "role.risk.declined",
   "role.profile.activated",
   "role.profile.retired",
+  // Candidate lifecycle
+  "candidate.created",
+  "candidate.identity_verified",
   // Case lifecycle
   "case.opened",
   "case.state.changed",

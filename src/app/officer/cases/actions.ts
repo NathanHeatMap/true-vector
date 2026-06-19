@@ -97,7 +97,7 @@ export async function advanceCaseStateAction(
       ctx,
       caseId: parsed.data.caseId,
       toState: parsed.data.toState,
-      note: parsed.data.note,
+      ...(parsed.data.note ? { note: parsed.data.note } : {}),
     });
     revalidatePath("/officer/cases");
     revalidatePath(`/officer/cases/${parsed.data.caseId}`);

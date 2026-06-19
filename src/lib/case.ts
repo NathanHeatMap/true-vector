@@ -217,3 +217,143 @@ export async function listOpenableRolesForTenant(
     .where(eq(roleProfiles.tenantId, ctx.tenant.tenantId))
     .orderBy(desc(roleProfiles.createdAt));
 }
+
+// -------------------------------------------------------------------------
+// State machine — happy-path lifecycle for the prototype
+// -------------------------------------------------------------------------
+
+type CaseState =
+  | "draft"
+  | "consent_pending"
+  | "evidence_gathering"
+  | "evidence_held"
+  | "synthesis"
+  | "decision_drafting"
+  | "right_of_reply"
+  | "adjudication_pending"
+  | "appeal"
+  | "closed_suitable"
+  | "closed_unsuitable"
+  | "closed_conditional"
+  | "closed_withdrawn";
+
+/**
+ * Allowed transitions per state. Prototype scope: happy-path + withdraw.
+ * Production scope (later cards) will add: evidence_held loop, right_of_reply,
+ * adjudication, appeal, conditional close paths.
+ */
+const TRANSITIONS: Record<CaseState, Array<{ to: CaseState; label: string }>> = {
+  draft: [{ to: "consent_pending", label: "Request candidate consent" }],
+  consent_pending: [
+    { to: "evidence_gathering", label: "Consent received — begin evidence" },
+    { to: "closed_withdrawn", label: "Withdraw case" },
+  ],
+  evidence_gathering: [
+    { to: "synthesis", label: "Evidence complete — synthesise" },
+    { to: "closed_withdrawn", label: "Withdraw case" },
+  ],
+  evidence_held: [
+    { to: "evidence_gathering", label: "Resume evidence gathering" },
+    { to: "closed_withdrawn", label: "Withdraw case" },
+  ],
+  synthesis: [
+    { to: "decision_drafting", label: "Draft decision" },
+    { to: "closed_withdrawn", label: "Withdraw case" },
+  ],
+  decision_drafting: [
+    { to: "closed_suitable", label: "Render: Suitable" },
+    { to: "closed_unsuitable", label: "Render: Unsuitable" },
+    { to: "closed_conditional", label: "Render: Conditional" },
+    { to: "closed_withdrawn", label: "Withdraw case" },
+  ],
+  right_of_reply: [
+    { to: "adjudication_pending", label: "Escalate to adjudication" },
+    { to: "closed_suitable", label: "Render: Suitable" },
+    { to: "closed_unsuitable", label: "Render: Unsuitable" },
+  ],
+  adjudication_pending: [
+    { to: "closed_suitable", label: "Adjudicate: Suitable" },
+    { to: "closed_unsuitable", label: "Adjudicate: Unsuitable" },
+    { to: "closed_conditional", label: "Adjudicate: Conditional" },
+    { to: "appeal", label: "Open appeal" },
+  ],
+  appeal: [
+    { to: "closed_suitable", label: "Appeal: Suitable" },
+    { to: "closed_unsuitable", label: "Appeal: Unsuitable" },
+  ],
+  closed_suitable: [],
+  closed_unsuitable: [],
+  closed_conditional: [],
+  closed_withdrawn: [],
+};
+
+export function allowedTransitionsFor(state: CaseState): ReadonlyArray<{
+  to: CaseState;
+  label: string;
+}> {
+  return TRANSITIONS[state] ?? [];
+}
+
+export class InvalidTransitionError extends Error {
+  constructor(from: string, to: string) {
+    super(`Transition not allowed: ${from} \u2192 ${to}`);
+    this.name = "InvalidTransitionError";
+  }
+}
+
+export async function advanceCaseState(args: {
+  ctx: RequestContext;
+  caseId: string;
+  toState: CaseState;
+  note?: string;
+}): Promise<Case> {
+  const { ctx, caseId, toState } = args;
+
+  const current = await db
+    .select()
+    .from(cases)
+    .where(
+      and(
+        eq(cases.caseId, caseId),
+        eq(cases.tenantId, ctx.tenant.tenantId),
+      ),
+    )
+    .limit(1);
+
+  const existing = current[0];
+  if (!existing) throw new ForbiddenError("case not found");
+
+  const allowed = (TRANSITIONS[existing.state as CaseState] ?? []).some(
+    (t) => t.to === toState,
+  );
+  if (!allowed) {
+    throw new InvalidTransitionError(existing.state, toState);
+  }
+
+  const isClosed = toState.startsWith("closed_");
+  const closedAt = isClosed ? new Date().toISOString() : null;
+
+  const updated = await db
+    .update(cases)
+    .set({
+      state: toState,
+      ...(isClosed ? { closedAt } : {}),
+    })
+    .where(eq(cases.caseId, caseId))
+    .returning();
+
+  const row = updated[0];
+  if (!row) throw new Error("failed to advance case state");
+
+  await recordEvent({
+    type: isClosed ? "case.closed" : "case.state.changed",
+    tenantId: ctx.tenant.tenantId,
+    actor: actorFromContext(ctx),
+    subject: { entityType: "case", entityId: caseId },
+    caseId,
+    before: { state: existing.state },
+    after: { state: row.state, note: args.note ?? null },
+  });
+
+  return row;
+}

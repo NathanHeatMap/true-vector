@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CaseStatePill } from "@/components/ui/state-pill";
-import { getCaseById } from "@/lib/case";
+import { allowedTransitionsFor, getCaseById } from "@/lib/case";
+
+import { CaseAdvanceActions } from "./advance-actions";
 import { requireRole } from "@/lib/tenant";
 
 export const metadata = { title: "Case detail" };
@@ -117,16 +119,17 @@ export default async function CaseDetailPage({
                   Lifecycle
                 </h2>
                 <p className="mt-3 text-sm text-[var(--color-tv-text-2)]">
-                  Phase C will wire up the state-machine transitions here:
-                  advance to consent capture, evidence gathering, synthesis,
-                  decision drafting, and so on. Each transition will write a{" "}
+                  Advance the case along the lifecycle. Each transition writes a{" "}
                   <code className="font-mono">case.state.changed</code> audit
-                  event.
+                  event into the immutable chain. Prototype scope: happy-path
+                  walk-through plus withdraw. Right-of-reply, adjudication and
+                  appeal paths are exposed once you reach those states.
                 </p>
-                <div className="mt-4 flex gap-2">
-                  <span className="inline-flex cursor-not-allowed items-center rounded-md border border-[var(--color-tv-border)] bg-[var(--color-tv-surface-2)] px-3 py-2 text-sm font-semibold text-[var(--color-tv-text-3)]">
-                    Advance state (next phase)
-                  </span>
+                <div className="mt-4">
+                  <CaseAdvanceActions
+                    caseId={caseRow.caseId}
+                    transitions={allowedTransitionsFor(caseRow.state)}
+                  />
                 </div>
               </Card>
             </div>

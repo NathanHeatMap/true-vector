@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/tenant";
 import { listRolesForTenant } from "@/lib/role-profile";
+import { listCasesForTenant } from "@/lib/case";
+import { listCandidatesForTenant } from "@/lib/candidate";
 
 export const metadata = { title: "Home" };
 
@@ -22,11 +24,17 @@ export const metadata = { title: "Home" };
  */
 export default async function OfficerHomePage() {
   const ctx = await requireRole(["officer", "owner"]);
-  const roles = await listRolesForTenant(ctx);
+  const [roles, cases, cands] = await Promise.all([
+    listRolesForTenant(ctx),
+    listCasesForTenant(ctx),
+    listCandidatesForTenant(ctx),
+  ]);
 
   const pendingSignOff = roles.filter((r) => r.status === "pending_sign_off").length;
   const drafts = roles.filter((r) => r.status === "draft").length;
   const active = roles.filter((r) => r.status === "active").length;
+  const openCases = cases.filter((c) => !c.state.startsWith("closed_")).length;
+  const totalCandidates = cands.length;
 
   return (
     <>
@@ -49,9 +57,9 @@ export default async function OfficerHomePage() {
 
           {/* Stat strip */}
           <div className="mb-8 grid grid-cols-4 gap-4">
-            <StatCard label="Cases open" value="0" subtitle="prototype: cases come in Card 6" />
-            <StatCard label="HITL tasks" value="0" subtitle="prototype: tasks come in Card 8" />
-            <StatCard label="Roles drafted" value={String(drafts)} />
+            <StatCard label="Cases open" value={String(openCases)} accent={openCases > 0} />
+            <StatCard label="Candidates" value={String(totalCandidates)} />
+            <StatCard label="Roles active" value={String(active)} />
             <StatCard label="Roles pending sign-off" value={String(pendingSignOff)} accent={pendingSignOff > 0} />
           </div>
 
